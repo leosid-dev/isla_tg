@@ -13,6 +13,8 @@ SAIL_RISCV_DIR=sail-riscv
 SAIL_MODEL_DIR=$(SAIL_RISCV_DIR)/model
 SAIL_ISLA_DIR=src
 
+ISLA_DIR = isla/target/release/
+
 # --------------------------------------------------------------------------
 #  Sail tool configuration
 # --------------------------------------------------------------------------
@@ -281,7 +283,7 @@ SAIL_SRCS = $(PRELUDE) \
 #  IR generation target (isla)
 # --------------------------------------------------------------------------
 
-generated_definitions/riscv_model_%.ir: $(SAIL_SRCS) $(SAIL_ISLA_DIR)/isla.sail $(SAIL_ISLA_DIR)/isla-splice.sail Makefile
+generated_definitions/riscv_model_%.ir: $(SAIL_SRCS) $(SAIL_ISLA_DIR)/isla.sail Makefile
 	mkdir -p generated_definitions/
 	isla-sail $(SAIL_FLAGS) --instantiate --all-modules --all-warnings --memo-z3 \
 	    --config ./rv32d_v128_e32.json \
@@ -298,5 +300,8 @@ generated_definitions/riscv_model_%.ir: $(SAIL_SRCS) $(SAIL_ISLA_DIR)/isla.sail 
 
 ir: generated_definitions/riscv_model_$(ARCH).ir
 
+footprint:
+
 clean:
 	-rm -rf generated_definitions/*.ir
+	

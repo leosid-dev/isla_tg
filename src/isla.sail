@@ -7,8 +7,6 @@ function init_model() = {
   reset_sys();
   reset_vmem();
   reset_elp();
-  misa[V] = 0b1;
-  mstatus[VS] = 0b01;
 }
 
 val ext_init : unit -> unit effect {barr, eamem, escape, exmem, rmem, rmemt, rreg, undef, wmv, wmvt, wreg}

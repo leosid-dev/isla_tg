@@ -2,3 +2,7 @@
 	path = sail-riscv
 	url = https://github.com/riscv/sail-riscv.git
 	branch = master
+[submodule "isla"]
+	path = isla
+	url = https://github.com/rems-project/isla.git
+	branch = master
