@@ -34,22 +34,19 @@ PRELUDE = $(SAIL_MODEL_DIR)/prelude/prelude.sail \
 
 BEFORE_CORE = $(SAIL_MODEL_DIR)/extensions/Zicbop/zicbop_types.sail \
               $(SAIL_MODEL_DIR)/extensions/Zicbom/zicbom_types.sail \
-              $(SAIL_MODEL_DIR)/extensions/Zibi/zibi_types.sail
+              $(SAIL_MODEL_DIR)/extensions/Zibi/zibi_types.sail \
+              $(SAIL_MODEL_DIR)/extensions/A/aext_types.sail \
+              $(SAIL_MODEL_DIR)/extensions/I/base_types.sail \
+              $(SAIL_MODEL_DIR)/extensions/M/mext_types.sail \
+              $(SAIL_MODEL_DIR)/extensions/B/bext_types.sail
 
 # --------------------------------------------------------------------------
 #  "Before sys" types (must come before sys, after prelude)
 # --------------------------------------------------------------------------
 
-BEFORE_SYS = $(SAIL_MODEL_DIR)/extensions/A/aext_types.sail \
-             $(SAIL_MODEL_DIR)/extensions/I/base_types.sail \
-             $(SAIL_MODEL_DIR)/extensions/M/mext_types.sail \
-             $(SAIL_MODEL_DIR)/extensions/B/bext_types.sail \
-             $(SAIL_MODEL_DIR)/extensions/Stateen/stateen_regs.sail \
+BEFORE_SYS = $(SAIL_MODEL_DIR)/extensions/Stateen/stateen_regs.sail \
              $(SAIL_MODEL_DIR)/extensions/Stateen/stateen_csrs.sail \
              $(SAIL_MODEL_DIR)/extensions/Stateen/stateen_access_checks.sail \
-             $(SAIL_MODEL_DIR)/extensions/FD/freg_type.sail \
-             $(SAIL_MODEL_DIR)/extensions/FD/fdext_regs.sail \
-             $(SAIL_MODEL_DIR)/extensions/FD/fdext_control.sail \
              $(SAIL_MODEL_DIR)/extensions/V/vext_types.sail \
              $(SAIL_MODEL_DIR)/extensions/Zicsr/zicsr_types.sail \
              $(SAIL_MODEL_DIR)/extensions/Zawrs/zawrs_types.sail \
@@ -95,6 +92,9 @@ CORE = $(SAIL_MODEL_DIR)/core/xlen.sail \
        $(SAIL_MODEL_DIR)/core/misa_ext.sail \
        $(SAIL_MODEL_DIR)/core/softfloat_interface.sail
 
+FD_CORE = $(SAIL_MODEL_DIR)/extensions/FD/freg_type.sail \
+          $(SAIL_MODEL_DIR)/extensions/FD/fdext_regs.sail \
+          $(SAIL_MODEL_DIR)/extensions/FD/fdext_control.sail
 # --------------------------------------------------------------------------
 #  V_core (vector register file + control, requires FD_core)
 # --------------------------------------------------------------------------
@@ -174,8 +174,8 @@ A_INSTS = $(SAIL_MODEL_DIR)/extensions/A/zaamo_insts.sail \
 
 M_INSTS = $(SAIL_MODEL_DIR)/extensions/M/mext_insts.sail
 
-C_INSTS = $(SAIL_MODEL_DIR)/extensions/C/zca_insts.sail \
-          $(SAIL_MODEL_DIR)/extensions/C/zcb_insts.sail
+C_INSTS = #$(SAIL_MODEL_DIR)/extensions/C/zca_insts.sail \
+          #$(SAIL_MODEL_DIR)/extensions/C/zcb_insts.sail
 
 B_INSTS = $(SAIL_MODEL_DIR)/extensions/B/zba_insts.sail \
           $(SAIL_MODEL_DIR)/extensions/B/zbb_insts.sail \
@@ -246,6 +246,7 @@ POSTLUDE = $(SAIL_MODEL_DIR)/postlude/insts_end.sail \
            $(SAIL_MODEL_DIR)/postlude/step_common.sail \
            $(SAIL_MODEL_DIR)/postlude/step_ext.sail \
            $(SAIL_MODEL_DIR)/postlude/decode_ext.sail \
+           $(SAIL_MODEL_DIR)/postlude/fetch_rvfi.sail \
            $(SAIL_MODEL_DIR)/postlude/fetch.sail \
            $(SAIL_MODEL_DIR)/postlude/step.sail
 
@@ -255,8 +256,9 @@ POSTLUDE = $(SAIL_MODEL_DIR)/postlude/insts_end.sail \
 
 SAIL_SRCS = $(PRELUDE) \
             $(BEFORE_CORE) \
-            $(BEFORE_SYS) \
             $(CORE) \
+            $(BEFORE_SYS) \
+            $(FD_CORE) \
             $(V_CORE) \
             $(SMCNTRPMF) \
             $(EXCEPTIONS) \
@@ -281,11 +283,11 @@ SAIL_SRCS = $(PRELUDE) \
 
 generated_definitions/riscv_model_%.ir: $(SAIL_SRCS) $(SAIL_ISLA_DIR)/isla.sail $(SAIL_ISLA_DIR)/isla-splice.sail Makefile
 	mkdir -p generated_definitions/
-	isla-sail $(SAIL_FLAGS) --mono-rewrites --memo-z3 \
+	isla-sail $(SAIL_FLAGS) --instantiate --all-modules --all-warnings --memo-z3 \
+	    --config ./rv32d_v128_e32.json \
 		--isla-preserve isla_testgen_init \
 		--isla-preserve isla_testgen_step \
 		$(SAIL_SRCS) $(SAIL_ISLA_DIR)/isla.sail \
-		-splice $(SAIL_ISLA_DIR)/isla-splice.sail \
 		-o $(basename $@)
 
 # --------------------------------------------------------------------------
