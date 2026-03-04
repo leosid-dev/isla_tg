@@ -1,5 +1,74 @@
-# Makefile for ISLA IR generation with RISC-V Vector support
-# Targeting latest upstream riscv/sail-riscv (restructured model directory)
+MAKE_ROOT ?= ./
+ISLA_SAIL := $(MAKE_ROOT)/isla/isla-sail
+SAIL_RISCV := $(MAKE_ROOT)/sail-riscv
+ISLA_SRC := $(MAKE_ROOT)/isla
+ISLA_BUILD := $(ISLA_SRC)/target/release
+ISLA_TG_SRC := $(MAKE_ROOT)/isla-testgen
+ISLA_TG_BUILD := $(ISLA_TG_SRC)/target/release
+
+# Opam switch configuration
+OPAM_SWITCH ?= 5.1.0
+OPAM_EXEC ?= opam exec --switch $(OPAM_SWITCH) --
+
+check-prereq:
+	@echo "Checking prerequisites..."
+	@command -v opam >/dev/null 2>&1 || { echo "Error: opam not found. Please install opam >= 2.0"; exit 1; }
+	@if [ ! -d "$(HOME)/.opam" ]; then \
+		echo "Opam not initialized. Running opam init..."; \
+		opam init --bare -y || { echo "Error: failed to initialize opam"; exit 1; }; \
+	fi
+	@if ! opam switch list --short | grep -qx "$(OPAM_SWITCH)"; then \
+		echo "Opam switch $(OPAM_SWITCH) not found. Creating it..."; \
+		opam switch create $(OPAM_SWITCH) || { echo "Error: failed to create opam switch $(OPAM_SWITCH)"; exit 1; }; \
+	fi
+	@command -v rustc >/dev/null 2>&1 || { echo "Error: rustc not found. Please install Rust (https://rustup.rs/)"; exit 1; }
+	@command -v cargo >/dev/null 2>&1 || { echo "Error: cargo not found. Please install Rust (https://rustup.rs/)"; exit 1; }
+	@command -v z3 >/dev/null 2>&1 || { echo "Error: z3 not found. Please install z3"; exit 1; }
+	@if ! $(OPAM_EXEC) command -v dune >/dev/null 2>&1; then \
+		echo "Dune not found in opam switch $(OPAM_SWITCH). Installing dune..."; \
+		opam install dune -y --switch $(OPAM_SWITCH); \
+	fi
+	@command -v pkg-config >/dev/null 2>&1 || { echo "Error: pkg-config not found. Please install pkg-config"; exit 1; }
+	@pkg-config --exists gmp || { echo "Error: gmp not found. Please install libgmp-dev"; exit 1; }
+	@echo "All prerequisites found in opam switch $(OPAM_SWITCH)."
+
+init-submodules:
+	@echo "Initializing and updating submodules to latest remote commits..."
+	git submodule update --remote --init --recursive
+
+install-sail: init-submodules check-prereq
+	@if $(OPAM_EXEC) command -v sail >/dev/null 2>&1; then \
+		echo "Sail is already installed in switch $(OPAM_SWITCH)."; \
+	else \
+		echo "Installing Sail in switch $(OPAM_SWITCH)..."; \
+		opam install sail -y --switch $(OPAM_SWITCH); \
+	fi
+
+install-isla: init-submodules check-prereq
+	@if [ -d $(ISLA_BUILD) ];then \
+		echo "Isla is already installed."; \
+	else \
+		echo "Installing Isla "; \
+		$(OPAM_EXEC) $(MAKE) -C $(ISLA_SRC) isla isla-sail; \
+	fi
+	
+install-isla-testgen: init-submodules
+	@if [ -d $(ISLA_TG_BUILD) ];then \
+	echo "Isla testgen is already installed."; \
+	else \
+		echo "Installing Isla Testgen "; \
+		cd $(ISLA_TG_SRC) && \
+		cargo build --release; \
+	fi
+
+install-sail-riscv: init-submodules
+	@echo "Checking Sail RISC-V model..."
+	@test -d $(SAIL_RISCV)/model || { echo "Error: $(SAIL_RISCV)/model not found. Submodule update failed?"; exit 1; }
+	@cd $(SAIL_RISCV) && \
+	$(OPAM_EXEC) command ./build_simulator.sh
+
+install-all: install-sail install-isla install-isla-testgen
+	@echo "All components installed successfully."
 
 # Default architecture
 ARCH ?= RV32
@@ -11,28 +80,13 @@ endif
 
 SAIL_RISCV_DIR=sail-riscv
 SAIL_MODEL_DIR=$(SAIL_RISCV_DIR)/model
-SAIL_ISLA_DIR=src
 
-ISLA_DIR = isla/target/release/
-
-# --------------------------------------------------------------------------
-#  Sail tool configuration
-# --------------------------------------------------------------------------
-
-SAIL := sail
-SAIL_DIR := $(shell $(SAIL) -dir)
-SAIL_LIB_DIR := $(SAIL_DIR)/lib
-
-# --------------------------------------------------------------------------
+#--------------------------------------------------------------------------------------------------
 #  Prelude
-# --------------------------------------------------------------------------
 
 PRELUDE = $(SAIL_MODEL_DIR)/prelude/prelude.sail \
           $(SAIL_MODEL_DIR)/prelude/errors.sail
 
-# --------------------------------------------------------------------------
-#  "Before core" types (must come before core)
-# --------------------------------------------------------------------------
 
 BEFORE_CORE = $(SAIL_MODEL_DIR)/extensions/Zicbop/zicbop_types.sail \
               $(SAIL_MODEL_DIR)/extensions/Zicbom/zicbom_types.sail \
@@ -42,9 +96,6 @@ BEFORE_CORE = $(SAIL_MODEL_DIR)/extensions/Zicbop/zicbop_types.sail \
               $(SAIL_MODEL_DIR)/extensions/M/mext_types.sail \
               $(SAIL_MODEL_DIR)/extensions/B/bext_types.sail
 
-# --------------------------------------------------------------------------
-#  "Before sys" types (must come before sys, after prelude)
-# --------------------------------------------------------------------------
 
 BEFORE_SYS = $(SAIL_MODEL_DIR)/extensions/Stateen/stateen_regs.sail \
              $(SAIL_MODEL_DIR)/extensions/Stateen/stateen_csrs.sail \
@@ -58,9 +109,8 @@ BEFORE_SYS = $(SAIL_MODEL_DIR)/extensions/Stateen/stateen_regs.sail \
              $(SAIL_MODEL_DIR)/extensions/cfi/zicfilp_regs.sail \
              $(SAIL_MODEL_DIR)/extensions/Zihintntl/zihintntl_types.sail
 
-# --------------------------------------------------------------------------
+#--------------------------------------------------------------------------------------------------
 #  Core sources
-# --------------------------------------------------------------------------
 
 CORE = $(SAIL_MODEL_DIR)/core/xlen.sail \
        $(SAIL_MODEL_DIR)/core/flen.sail \
@@ -97,37 +147,27 @@ CORE = $(SAIL_MODEL_DIR)/core/xlen.sail \
 FD_CORE = $(SAIL_MODEL_DIR)/extensions/FD/freg_type.sail \
           $(SAIL_MODEL_DIR)/extensions/FD/fdext_regs.sail \
           $(SAIL_MODEL_DIR)/extensions/FD/fdext_control.sail
-# --------------------------------------------------------------------------
-#  V_core (vector register file + control, requires FD_core)
-# --------------------------------------------------------------------------
+
+#  V_core
+
 
 V_CORE = $(SAIL_MODEL_DIR)/extensions/V/vreg_type.sail \
          $(SAIL_MODEL_DIR)/extensions/V/vext_regs.sail \
          $(SAIL_MODEL_DIR)/extensions/V/vext_control.sail
 
-# --------------------------------------------------------------------------
-#  Extensions that sys depends on
-# --------------------------------------------------------------------------
 
 SMCNTRPMF = $(SAIL_MODEL_DIR)/extensions/Smcntrpmf/smcntrpmf.sail
 
-# --------------------------------------------------------------------------
-#  Exceptions
-# --------------------------------------------------------------------------
 
 EXCEPTIONS = $(SAIL_MODEL_DIR)/exceptions/sys_exceptions.sail \
              $(SAIL_MODEL_DIR)/exceptions/sync_exception.sail
 
-# --------------------------------------------------------------------------
-#  PMP
-# --------------------------------------------------------------------------
+
 
 PMP = $(SAIL_MODEL_DIR)/pmp/pmp_regs.sail \
       $(SAIL_MODEL_DIR)/pmp/pmp_control.sail
 
-# --------------------------------------------------------------------------
-#  System / platform sources
-# --------------------------------------------------------------------------
+
 
 SYS = $(SAIL_MODEL_DIR)/sys/sys_reservation.sail \
       $(SAIL_MODEL_DIR)/sys/sys_control.sail \
@@ -142,34 +182,23 @@ SYS = $(SAIL_MODEL_DIR)/sys/sys_reservation.sail \
       $(SAIL_MODEL_DIR)/sys/insts_begin.sail \
       $(SAIL_MODEL_DIR)/sys/vmem_utils.sail
 
-# --------------------------------------------------------------------------
-#  Additional extension support (CSR / counters, needed by sys or postlude)
-# --------------------------------------------------------------------------
 
 EXT_SUPPORT = $(SAIL_MODEL_DIR)/extensions/Zicntr/zicntr_control.sail \
               $(SAIL_MODEL_DIR)/extensions/Zihpm/zihpm.sail \
               $(SAIL_MODEL_DIR)/extensions/Sscofpmf/sscofpmf.sail \
               $(SAIL_MODEL_DIR)/extensions/Ssqosid/ssqosid.sail
 
-# --------------------------------------------------------------------------
-#  Instructions: "before I_insts" (must come before base instructions)
-# --------------------------------------------------------------------------
-
 BEFORE_I_INSTS = $(SAIL_MODEL_DIR)/extensions/Zihintntl/zihintntl_insts.sail \
                  $(SAIL_MODEL_DIR)/extensions/Zicbop/zicbop_insts.sail \
                  $(SAIL_MODEL_DIR)/extensions/Zihintpause/zihintpause_insts.sail \
                  $(SAIL_MODEL_DIR)/extensions/cfi/zicfilp_insts.sail
 
-# --------------------------------------------------------------------------
-#  Base instructions (I extension)
-# --------------------------------------------------------------------------
 
 I_INSTS = $(SAIL_MODEL_DIR)/extensions/I/base_insts.sail \
           $(SAIL_MODEL_DIR)/extensions/I/jalr_seq.sail
 
-# --------------------------------------------------------------------------
-#  A, M, C, B extension instructions
-# --------------------------------------------------------------------------
+#--------------------------------------------------------------------------------------------------
+#Extensions
 
 A_INSTS = $(SAIL_MODEL_DIR)/extensions/A/zaamo_insts.sail \
           $(SAIL_MODEL_DIR)/extensions/A/zalrsc_insts.sail
@@ -184,9 +213,6 @@ B_INSTS = $(SAIL_MODEL_DIR)/extensions/B/zba_insts.sail \
           $(SAIL_MODEL_DIR)/extensions/B/zbc_insts.sail \
           $(SAIL_MODEL_DIR)/extensions/B/zbs_insts.sail
 
-# --------------------------------------------------------------------------
-#  Floating-point instructions (F + D)
-# --------------------------------------------------------------------------
 
 FD_INSTS = $(SAIL_MODEL_DIR)/extensions/FD/fext_insts.sail \
            $(SAIL_MODEL_DIR)/extensions/FD/zcf_insts.sail \
@@ -195,9 +221,6 @@ FD_INSTS = $(SAIL_MODEL_DIR)/extensions/FD/fext_insts.sail \
            $(SAIL_MODEL_DIR)/extensions/FD/zfh_insts.sail \
            $(SAIL_MODEL_DIR)/extensions/FD/zfa_insts.sail
 
-# --------------------------------------------------------------------------
-#  Vector extension instructions (V)
-# --------------------------------------------------------------------------
 
 V_INSTS = $(SAIL_MODEL_DIR)/extensions/V/vext_utils_insts.sail \
           $(SAIL_MODEL_DIR)/extensions/V/vext_fp_utils_insts.sail \
@@ -211,9 +234,6 @@ V_INSTS = $(SAIL_MODEL_DIR)/extensions/V/vext_utils_insts.sail \
           $(SAIL_MODEL_DIR)/extensions/V/vext_red_insts.sail \
           $(SAIL_MODEL_DIR)/extensions/V/vext_fp_red_insts.sail
 
-# --------------------------------------------------------------------------
-#  Other extension instructions (CSR, crypto, fence, cache, hypervisor, etc.)
-# --------------------------------------------------------------------------
 
 OTHER_INSTS = $(SAIL_MODEL_DIR)/extensions/Zicsr/zicsr_insts.sail \
               $(SAIL_MODEL_DIR)/extensions/Svinval/svinval_insts.sail \
@@ -231,17 +251,12 @@ OTHER_INSTS = $(SAIL_MODEL_DIR)/extensions/Zicsr/zicsr_insts.sail \
               $(SAIL_MODEL_DIR)/extensions/K/zbkx_insts.sail \
               $(SAIL_MODEL_DIR)/extensions/H/hext_insts.sail
 
-# --------------------------------------------------------------------------
-#  May-be-operations (after extensions)
-# --------------------------------------------------------------------------
 
 MOPS = $(SAIL_MODEL_DIR)/mops/Zimop/zimop_insts.sail \
        $(SAIL_MODEL_DIR)/mops/Zcmop/zcmop_insts.sail
 
-# --------------------------------------------------------------------------
-#  Postlude (step, fetch, decode, etc.)
-#  NOTE: model.sail excluded - isla.sail replaces it as the entry point
-# --------------------------------------------------------------------------
+#--------------------------------------------------------------------------------------------------
+#  Postlude
 
 POSTLUDE = $(SAIL_MODEL_DIR)/postlude/insts_end.sail \
            $(SAIL_MODEL_DIR)/postlude/csr_end.sail \
@@ -251,10 +266,6 @@ POSTLUDE = $(SAIL_MODEL_DIR)/postlude/insts_end.sail \
            $(SAIL_MODEL_DIR)/postlude/fetch_rvfi.sail \
            $(SAIL_MODEL_DIR)/postlude/fetch.sail \
            $(SAIL_MODEL_DIR)/postlude/step.sail
-
-# --------------------------------------------------------------------------
-#  Complete ordered source list
-# --------------------------------------------------------------------------
 
 SAIL_SRCS = $(PRELUDE) \
             $(BEFORE_CORE) \
@@ -279,29 +290,28 @@ SAIL_SRCS = $(PRELUDE) \
             $(MOPS) \
             $(POSTLUDE)
 
-# --------------------------------------------------------------------------
-#  IR generation target (isla)
-# --------------------------------------------------------------------------
+#--------------------------------------------------------------------------------------------------
 
 generated_definitions/riscv_model_%.ir: $(SAIL_SRCS) $(SAIL_ISLA_DIR)/isla.sail Makefile
 	mkdir -p generated_definitions/
-	isla-sail $(SAIL_FLAGS) --instantiate --all-modules --all-warnings --memo-z3 \
+	$(ISLA_SAIL)/isla-sail $(SAIL_FLAGS) --instantiate --all-modules --all-warnings --memo-z3 \
 	    --config ./rv32d_v128_e32.json \
 		--isla-preserve isla_testgen_init \
 		--isla-preserve isla_testgen_step \
 		$(SAIL_SRCS) $(SAIL_ISLA_DIR)/isla.sail \
 		-o $(basename $@)
 
-# --------------------------------------------------------------------------
-#  Phony targets
-# --------------------------------------------------------------------------
-
-.PHONY: ir clean
-
 ir: generated_definitions/riscv_model_$(ARCH).ir
 
-footprint:
+fp: ir
+	$(ISLA_BUILD)/isla-footprint -s -A generated_definitions/riscv_model_$(ARCH).ir -C ./rv32_core.toml 
+	
+tg: ir
+	$(ISLA_TG_BUILD)/isla-testgen -a cheriot -A generated_definitions/riscv_model_$(ARCH).ir -C ./rv32_core.toml    
 
 clean:
 	-rm -rf generated_definitions/*.ir
+	
+
+.PHONY: ir clean check-prereq init-submodules install-sail install-isla install-isla-testgen install-sail-riscv install-all
 	
