@@ -1,10 +1,12 @@
-MAKE_ROOT ?= ./
+MAKE_ROOT ?= .
 ISLA_SAIL := $(MAKE_ROOT)/isla/isla-sail
 SAIL_RISCV := $(MAKE_ROOT)/sail-riscv
 ISLA_SRC := $(MAKE_ROOT)/isla
 ISLA_BUILD := $(ISLA_SRC)/target/release
 ISLA_TG_SRC := $(MAKE_ROOT)/isla-testgen
 ISLA_TG_BUILD := $(ISLA_TG_SRC)/target/release
+
+SAIL_ISLA_DIR = $(MAKE_ROOT)/src
 
 # Opam switch configuration
 OPAM_SWITCH ?= 5.1.0
@@ -34,7 +36,7 @@ check-prereq:
 
 init-submodules:
 	@echo "Initializing and updating submodules to latest remote commits..."
-	git submodule update --remote --init --recursive
+	git submodule update --init --recursive
 
 install-sail: init-submodules check-prereq
 	@if $(OPAM_EXEC) command -v sail >/dev/null 2>&1; then \
@@ -78,8 +80,8 @@ else ifeq ($(ARCH),64)
   override ARCH := RV64
 endif
 
-SAIL_RISCV_DIR=sail-riscv
-SAIL_MODEL_DIR=$(SAIL_RISCV_DIR)/model
+
+SAIL_MODEL_DIR=$(SAIL_RISCV)/model
 
 #--------------------------------------------------------------------------------------------------
 #  Prelude
@@ -294,8 +296,8 @@ SAIL_SRCS = $(PRELUDE) \
 
 generated_definitions/riscv_model_%.ir: $(SAIL_SRCS) $(SAIL_ISLA_DIR)/isla.sail Makefile
 	mkdir -p generated_definitions/
-	$(ISLA_SAIL)/isla-sail $(SAIL_FLAGS) --instantiate --all-modules --all-warnings --memo-z3 \
-	    --config ./rv32d_v128_e32.json \
+	$(OPAM_EXEC) $(ISLA_SAIL)/isla-sail $(SAIL_FLAGS) --config ./rv32d_v128_e32.json --instantiate --all-modules --all-warnings --memo-z3 \
+		--isla-preserve isla_footprint \
 		--isla-preserve isla_testgen_init \
 		--isla-preserve isla_testgen_step \
 		$(SAIL_SRCS) $(SAIL_ISLA_DIR)/isla.sail \
@@ -304,14 +306,18 @@ generated_definitions/riscv_model_%.ir: $(SAIL_SRCS) $(SAIL_ISLA_DIR)/isla.sail 
 ir: generated_definitions/riscv_model_$(ARCH).ir
 
 fp: ir
-	$(ISLA_BUILD)/isla-footprint -s -A generated_definitions/riscv_model_$(ARCH).ir -C ./rv32_core.toml 
+	$(ISLA_BUILD)/isla-footprint -s -A generated_definitions/riscv_model_$(ARCH).ir -C ./rv32_core.toml \
+	    -i "vadd.vv v24, v8, v16"
 	
 tg: ir
 	$(ISLA_TG_BUILD)/isla-testgen -a cheriot -A generated_definitions/riscv_model_$(ARCH).ir -C ./rv32_core.toml    
 
 clean:
-	-rm -rf generated_definitions/*.ir
+	rm -rf generated_definitions
+	
+purge:
+	rm -rf generated_definitions/*.ir $(ISLA_BUILD) $(ISLA_TG_BUILD)
 	
 
-.PHONY: ir clean check-prereq init-submodules install-sail install-isla install-isla-testgen install-sail-riscv install-all
+.PHONY: ir clean purge check-prereq init-submodules install-sail install-isla install-isla-testgen install-sail-riscv install-all
 	

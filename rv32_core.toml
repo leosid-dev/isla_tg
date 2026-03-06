@@ -1,19 +1,14 @@
-# This is a config for Sail RISC-V in 32-bit mode
-
+# Config for Sail RISC-V in 32-bit mode with RVV support
 pc = "PC"
-
 # No ifetch semantics for RISC-V
 ifetch = "Read_ifetch"
-
 read_exclusives = []
 write_exclusives = []
-
-assembler = "riscv64-unknown-elf-as -march=rv32imv"
+assembler = "riscv64-unknown-elf-as -march=rv32imv_zicsr"
 objdump = "riscv64-unknown-elf-objdump"
 linker = "riscv64-unknown-elf-ld"
 nm = "riscv64-unknown-elf-nm"
 
-# Currently not used for RISC-V
 [mmu]
 page_table_base = "0x300000"
 page_size = "4096"
@@ -30,73 +25,86 @@ base = "0x80310000"
 top = "0x80410000"
 stride = "0x10"
 
-[registers.defaults]
-
 [reads]
-Read_RISCV_acquire = "A"
-Read_RISCV_strong_acquire = "A"
-Read_RISCV_reserved_acquire = ["A", "X"]
-Read_RISCV_reserved_strong_acquire = ["A", "X"]
+Read_RISCV_acquire                    = "A"
+Read_RISCV_strong_acquire             = "A"
+Read_RISCV_reserved_acquire           = ["A", "X"]
+Read_RISCV_reserved_strong_acquire    = ["A", "X"]
 
 [writes]
-Write_RISCV_release = "L"
-Write_RISCV_strong_release = "L"
-Write_RISCV_conditional_release = ["L", "X"]
+Write_RISCV_release                   = "L"
+Write_RISCV_strong_release            = "L"
+Write_RISCV_conditional_release       = ["L", "X"]
 Write_RISCV_conditional_strong_release = ["L", "X"]
 
 [cache_ops]
 
 [barriers]
 Barrier_RISCV_rw_rw = "Fence.rw.rw"
-Barrier_RISCV_r_rw = "Fence.r.rw"
-Barrier_RISCV_r_r = "Fence.r.r"
-Barrier_RISCV_rw_w = "Fence.rw.w"
-Barrier_RISCV_w_w = "Fence.w.w"
-Barrier_RISCV_w_rw = "Fence.w.rw"
-Barrier_RISCV_rw_r = "Fence.rw.r"
-Barrier_RISCV_r_w = "Fence.r.w"
-Barrier_RISCV_w_r = "Fence.w.r"
-Barrier_RISCV_tso = "Fence.tso"
-Barrier_RISCV_i = "Fence.i"
+Barrier_RISCV_r_rw  = "Fence.r.rw"
+Barrier_RISCV_r_r   = "Fence.r.r"
+Barrier_RISCV_rw_w  = "Fence.rw.w"
+Barrier_RISCV_w_w   = "Fence.w.w"
+Barrier_RISCV_w_rw  = "Fence.w.rw"
+Barrier_RISCV_rw_r  = "Fence.rw.r"
+Barrier_RISCV_r_w   = "Fence.r.w"
+Barrier_RISCV_w_r   = "Fence.w.r"
+Barrier_RISCV_tso   = "Fence.tso"
+Barrier_RISCV_i     = "Fence.i"
 
 [const_primops]
-get_config_print_reg = false
-get_config_print_instr = false
-get_config_print_platform = false
-get_config_print_mem = false
-get_config_print_exception = false
-sys_enable_fdext = false
-sys_enable_zfinx = false
-sys_enable_rvc = true
-sys_enable_next = false
-sys_enable_vext = false
-sys_enable_writable_fiom = true
-sys_enable_writable_misa = true
-sys_enable_bext = false
-sys_pmp_count = "0 : %i64"
-sys_pmp_grain = "0 : %i64"
-plat_enable_pmp = false
-plat_enable_dirty_update = false
-plat_enable_misaligned_access = false
-plat_mtval_has_illegal_inst_bits = false
-plat_insns_per_tick = 10
-plat_ram_base = "0x80000000"
-plat_ram_size = "0x04000000"
-plat_rom_base = "0x00001000"
-plat_rom_size = "0x00000100"
-plat_clint_base = "0x02000000"
-plat_clint_size = "0x000c0000"
-plat_uart_base = "0x10000000"
-plat_uart_size = "0x00000100"
-plat_htif_tohost = "0x40001000"
-plat_get_16_random_bits = "undefined : %bv16"
-plat_term_write = "()"
-print_reg = "()"
-print_platform = "()"
-print_instr = "()"
-print_mem_access = "()"
-speculate_conditional = "undefined : %bool"
-match_reservation = "true"
-cancel_reservation = "()"
-load_reservation = "()"
-platform_write_mem_ea = "()"
+parse_hex_bits                    = true
+sys_enable_experimental_extensions = true
+vector_init                       = true
+get_config_print_reg              = false
+get_config_print_instr            = false
+get_config_print_platform         = false
+get_config_print_mem              = false
+get_config_print_exception        = false
+sys_enable_fdext                  = false
+sys_enable_zfinx                  = false
+sys_enable_rvc                    = true
+sys_enable_next                   = false
+sys_enable_vext                   = true
+sys_enable_writable_fiom          = true
+sys_enable_writable_misa          = true
+sys_enable_bext                   = false
+sys_pmp_count                     = "0 : %i64"
+sys_pmp_grain                     = "0 : %i64"
+plat_enable_pmp                   = false
+plat_enable_dirty_update          = false
+plat_enable_misaligned_access     = false
+plat_mtval_has_illegal_inst_bits  = false
+plat_insns_per_tick               = 10
+plat_ram_base                     = "0x80000000"
+plat_ram_size                     = "0x04000000"
+plat_rom_base                     = "0x00001000"
+plat_rom_size                     = "0x00000100"
+plat_clint_base                   = "0x02000000"
+plat_clint_size                   = "0x000c0000"
+plat_uart_base                    = "0x10000000"
+plat_uart_size                    = "0x00000100"
+plat_htif_tohost                  = "0x40001000"
+plat_get_16_random_bits           = "undefined : %bv16"
+plat_term_write                   = "()"
+print_reg                         = "()"
+print_platform                    = "()"
+print_instr                       = "()"
+print_mem_access                  = "()"
+speculate_conditional             = "undefined : %bool"
+match_reservation                 = "true"
+cancel_reservation                = "()"
+load_reservation                  = "()"
+platform_write_mem_ea             = "()"
+
+
+#**What changed and why:**
+#
+#**`[registers.defaults]` — the core fix.** The `vl`, `vstart`, `vtype`, `vlenb`, `vcsr`, `vxsat`, and `vxrm` registers are now explicitly set to concrete bitvector values. Without `vl` being concrete, `read_vmask` calls `sail_ones(vl)` with a symbolic length, which Isla cannot handle. The format `"0x... : %bvN"` is Isla's typed literal syntax for bitvectors. `vl = 4` with `vsew=e8, vlmul=m1` is a sensible concrete state (4 byte-elements per operation).
+
+#**`assembler` march flag** — added `_zicsr` to the `-march` string. The `vtype`/`vl` CSRs require `zicsr` to be enabled in the assembler; without it newer GNU assemblers reject the encoding.
+
+#**`vlenb`** — set to `0x10` (16 bytes), which matches a `VLEN=128` microarchitecture. If your model was compiled with a different VLEN assumption, change this to `VLEN/8`.
+
+#If you still hit issues, you can also pass the register overrides directly on the command line without touching the TOML, using the `-R` flag Isla exposes post-initialization:
+#-R "vl=0x00000004 : %bv32" -R "vstart=0x00000000 : %bv32"
